@@ -104,3 +104,138 @@ export function scoreComparison(comparison: Pick<Comparison, 'options' | 'criter
   const leaders = withRanks.filter((item) => item.rank === 1)
   return { ranked: withRanks, winner: leaders.length === 1 ? leaders[0] : null, leaders }
 }
+
+export interface WinnerFlip {
+  criterionId: string
+  /** Whether this criterion's importance must rise or fall to change the winner. */
+  direction: 'increase' | 'decrease'
+  /** The option that becomes the sole winner at `flipImportance`. */
+  challengerId: string
+  currentImportance: number
+  /** Importance at which the first challenger exactly ties the current winner. */
+  tieImportance: number
+  /**
+   * Importance (a multiple of `step`, just past the tie point) at which
+   * `scoreComparison` was actually re-run and returned `challengerId` as the sole winner.
+   */
+  flipImportance: number
+}
+
+export interface SensitivityOptions {
+  /** Lowest importance considered when lowering a criterion. Defaults to 0. */
+  minImportance?: number
+  /** Highest importance considered when raising a criterion. Defaults to 2x the current highest importance. */
+  maxImportance?: number
+  /** Granularity of reported `flipImportance` values. Defaults to 0.1. */
+  step?: number
+}
+
+export interface SensitivityResult {
+  /** Current sole winner, or null when first place is tied (no flips are computed for ties). */
+  winnerId: string | null
+  /** At most one flip per criterion and direction, smallest change first. Empty means the winner is stable. */
+  flips: WinnerFlip[]
+  /** The lower bound that was applied to decreases. */
+  minImportance: number
+  /** The upper bound that was applied to increases. */
+  maxImportance: number
+}
+
+function roundTo(value: number, step: number): number {
+  return Math.round(value / step) * step
+}
+
+/**
+ * Finds the smallest single-criterion importance change that would change the winner.
+ * Each criterion is varied on its own (others fixed): raised up to `maxImportance`, or lowered to `minImportance`.
+ * Every reported flip is confirmed by re-running `scoreComparison` at `flipImportance`.
+ * Pass the UI's importance range and step so every reported change is one the user can actually make.
+ */
+export function analyzeSensitivity(
+  comparison: Pick<Comparison, 'options' | 'criteria'>,
+  settings: SensitivityOptions = {},
+): SensitivityResult {
+  const { options, criteria } = comparison
+  const base = scoreComparison(comparison)
+  const topImportance = Math.max(...criteria.map((criterion) => criterion.importance))
+  const minImportance = settings.minImportance ?? 0
+  const maxImportance = settings.maxImportance ?? topImportance * 2
+  const step = settings.step ?? 0.1
+  if (!Number.isFinite(minImportance) || minImportance < 0) throw new Error('minImportance must be a nonnegative number')
+  if (!Number.isFinite(maxImportance) || maxImportance < minImportance) throw new Error('maxImportance must be a number of at least minImportance')
+  if (!Number.isFinite(step) || step <= 0) throw new Error('step must be a positive number')
+  if (!base.winner) return { winnerId: null, flips: [], minImportance, maxImportance }
+
+  const winnerId = base.winner.optionId
+  const effective = new Map(base.ranked.map((item) => [
+    item.optionId,
+    new Map(item.contributions.map((contribution) => [contribution.criterionId, contribution.effectiveScore])),
+  ]))
+  const eff = (optionId: string, criterionId: string) => effective.get(optionId)!.get(criterionId)!
+
+  function winnerAt(criterionId: string, importance: number): string | null {
+    try {
+      return scoreComparison({
+        options,
+        criteria: criteria.map((item) => (item.id === criterionId ? { ...item, importance } : item)),
+      }).winner?.optionId ?? null
+    } catch {
+      return null // e.g. total importance would become zero
+    }
+  }
+
+  const flips: WinnerFlip[] = []
+  for (const criterion of criteria) {
+    // Unnormalized weighted sum over the other criteria. Totals only change sign of their
+    // difference where these sums plus importance * effectiveScore are equal.
+    const rest = (optionId: string) => criteria.reduce(
+      (sum, other) => (other.id === criterion.id ? sum : sum + other.importance * eff(optionId, other.id)),
+      0,
+    )
+    const winnerRest = rest(winnerId)
+    const winnerScore = eff(winnerId, criterion.id)
+    let increaseTie: number | null = null
+    let decreaseTie: number | null = null
+
+    for (const option of options) {
+      if (option.id === winnerId) continue
+      const score = eff(option.id, criterion.id)
+      if (score === winnerScore) continue
+      const tie = (winnerRest - rest(option.id)) / (score - winnerScore)
+      if (score > winnerScore && tie > criterion.importance) {
+        increaseTie = increaseTie === null ? tie : Math.min(increaseTie, tie)
+      } else if (score < winnerScore && tie < criterion.importance && tie >= 0) {
+        decreaseTie = decreaseTie === null ? tie : Math.max(decreaseTie, tie)
+      }
+    }
+
+    const candidates: Array<['increase' | 'decrease', number | null]> = [['increase', increaseTie], ['decrease', decreaseTie]]
+    for (const [direction, tie] of candidates) {
+      if (tie === null) continue
+      // Try the first few step-aligned values past the tie point; keep the first verified flip.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const flipImportance = direction === 'increase'
+          ? roundTo((Math.floor(tie / step) + 1 + attempt) * step, step)
+          : roundTo((Math.ceil(tie / step) - 1 - attempt) * step, step)
+        if (direction === 'increase' && flipImportance > maxImportance) break
+        if (direction === 'decrease' && flipImportance < minImportance) break
+        const challengerId = winnerAt(criterion.id, flipImportance)
+        if (challengerId !== null && challengerId !== winnerId) {
+          flips.push({
+            criterionId: criterion.id,
+            direction,
+            challengerId,
+            currentImportance: criterion.importance,
+            tieImportance: tie,
+            flipImportance,
+          })
+          break
+        }
+      }
+    }
+  }
+
+  const size = (flip: WinnerFlip) => Math.abs(flip.flipImportance - flip.currentImportance)
+  flips.sort((a, b) => size(a) - size(b))
+  return { winnerId, flips, minImportance, maxImportance }
+}
