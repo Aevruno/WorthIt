@@ -6,7 +6,7 @@ WorthIt helps people compare options using criteria, importance weights, and sco
 
 ## General Rules
 
-- Read this file before modifying code.
+- Read this file before modifying code. Claude Code also follows [CLAUDE.md](CLAUDE.md).
 - Never work directly on `main`. Every task uses its own branch.
 - Keep changes limited to assigned scope. Do not rewrite unrelated code.
 - Do not silently change shared interfaces; explain and coordinate such changes.
@@ -20,7 +20,10 @@ Use `feature/<feature-name>`, `fix/<bug-name>`, or `chore/<task-name>`.
 
 ## Shared Files
 
-Protected/shared areas: `src/types/`, `src/state/`, `src/lib/scoring.ts`, `src/App.tsx`, `package.json`, `vite.config.*`, and `.github/`. Feature agents should explain why changes to these areas are needed before modifying them.
+Protected/shared areas: `src/types/`, `src/state/`, `src/lib/scoring.ts`, `src/App.tsx`, `src/main.tsx`, `src/components/`, `src/styles/`, `index.html`, `package.json`, `package-lock.json`, `vite.config.*`, `tsconfig*.json`, `.github/`, `AGENTS.md`, `CLAUDE.md`, and `docs/`. Feature agents should explain why changes to these areas are needed before modifying them.
+
+- Do not add dependencies without explaining why in the PR. `package-lock.json` should only change together with an intentional `package.json` change.
+- Tests live next to the code they cover as `*.test.ts` or `*.test.tsx` under `src/`.
 
 ## Current Feature Ownership
 
@@ -54,4 +57,6 @@ Approval applies only to the listed HEAD SHA. Any new commit makes it stale and 
 
 ## ChatGPT Merge Protocol
 
-Developer or agent → feature branch → PR → Claude review → `AEVRUNO_APPROVED` with exact HEAD SHA → ChatGPT verifies the current HEAD SHA matches, no newer blocking review exists, CI passes, and required conversations are resolved → human authorizes merge → ChatGPT merges the exact reviewed commit. Prefer squash merge for feature PRs unless the team specifies otherwise.
+Developer or agent → feature branch → PR → Claude review → `AEVRUNO_APPROVED` with exact HEAD SHA → (when a human asks) ChatGPT verifies the approval came from the Claude review account, its HEAD SHA matches the current PR head, no newer `REQUEST_CHANGES` review exists, required checks pass, required conversations are resolved, and the PR is still mergeable → human authorizes merge → ChatGPT merges the exact reviewed commit (`gh pr merge <n> --squash --match-head-commit <SHA>`). Approval alone never triggers a merge. Prefer squash merge for feature PRs unless the team specifies otherwise.
+
+Full protocol with valid/stale examples: [docs/PR_REVIEW_PROTOCOL.md](docs/PR_REVIEW_PROTOCOL.md).

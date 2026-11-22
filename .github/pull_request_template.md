@@ -1,42 +1,50 @@
-# What changed?
+## Purpose
 
-Briefly explain the change.
+What does this PR do, and why?
 
 ## Scope
 
-What feature or task does this PR address?
+Linked issue/task:
 
-## Files / areas changed
+Assigned area (e.g. `src/features/results/`):
 
-List important areas.
+Shared areas touched (see AGENTS.md — `src/types/`, `src/state/`, `src/lib/scoring.ts`, `src/App.tsx`, `package.json`, CI, etc.):
+- [ ] None
+- [ ] Yes — list them and explain why:
+
+## Changed files
+
+List the files changed and what changed in each.
 
 ## Testing
 
-- [ ] `npm run build` passes
-- [ ] `npm test` passes
-- [ ] Feature manually checked where applicable
-- [ ] Mobile layout checked if UI changed
+Commands actually run, with results (e.g. `npm test` — 9 passed):
 
-Commands run:
+```text
+
+```
+
+- [ ] `npm test` run on the final commit
+- [ ] `npm run build` run on the final commit
+- [ ] Affected UI checked manually in a browser (or N/A)
+- [ ] Mobile/narrow layout checked (or N/A)
 
 ## Screenshots
 
-Include screenshots when useful.
+Required for visible UI changes when practical. Otherwise write "N/A".
 
 ## Known limitations
 
-List anything unfinished or unverified.
+Anything unfinished, unverified, or deliberately out of scope.
 
-## AI Agent
+## AI agent used
 
-Agent used:
 - [ ] Codex
 - [ ] Claude Code
-- [ ] Other
+- [ ] ChatGPT
+- [ ] Other:
 - [ ] Human-written
 
-## Review
+---
 
-Do not merge your own PR.
-
-Claude review status: Pending
+Review and merge follow [docs/PR_REVIEW_PROTOCOL.md](../docs/PR_REVIEW_PROTOCOL.md). Approval is given only by a reviewer, in a review or comment for the exact HEAD SHA — never in this description. Do not merge your own PR.
