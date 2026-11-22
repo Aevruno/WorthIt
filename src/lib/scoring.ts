@@ -23,6 +23,16 @@ export interface ScoringResult {
   leaders: RankedOption[]
 }
 
+/**
+ * Weighted sums of equal real values can differ in floating point
+ * (e.g. 1/3 + 2/3 + 1 vs 1 + 2/3 + 1/3). Treat totals this close as tied.
+ */
+const TIE_TOLERANCE = 1e-9
+
+function sameScore(a: number, b: number): boolean {
+  return Math.abs(a - b) <= TIE_TOLERANCE
+}
+
 function assertUniqueIds(items: Array<{ id: string }>, label: string): void {
   const ids = items.map((item) => item.id)
   if (ids.some((id) => !id.trim()) || new Set(ids).size !== ids.length) {
@@ -85,11 +95,12 @@ export function scoreComparison(comparison: Pick<Comparison, 'options' | 'criter
     }
   })
 
-  ranked.sort((a, b) => b.score - a.score || a.index - b.index)
-  const withRanks: RankedOption[] = ranked.map(({ index: _index, ...item }, position) => ({
-    ...item,
-    rank: position === 0 ? 1 : ranked.findIndex((other) => other.score === item.score) + 1,
-  }))
+  ranked.sort((a, b) => (sameScore(a.score, b.score) ? a.index - b.index : b.score - a.score))
+  let rank = 1
+  const withRanks: RankedOption[] = ranked.map(({ index: _index, ...item }, position) => {
+    if (position > 0 && !sameScore(item.score, ranked[position - 1].score)) rank = position + 1
+    return { ...item, rank }
+  })
   const leaders = withRanks.filter((item) => item.rank === 1)
   return { ranked: withRanks, winner: leaders.length === 1 ? leaders[0] : null, leaders }
 }
