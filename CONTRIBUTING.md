@@ -9,6 +9,6 @@
 7. Wait for review; do not merge your own PR.
 8. Fix requested changes.
 9. Request another review if any commit is added after approval; approval is tied to the reviewed HEAD SHA.
-10. Merge only when review, CI, and human authorization requirements pass.
+10. Merge only when review, CI, and human authorization requirements pass — see [docs/PR_REVIEW_PROTOCOL.md](docs/PR_REVIEW_PROTOCOL.md).
 
 Repository maintainers should configure GitHub branch protection and required CI checks for `main`. A CODEOWNERS file can be added once GitHub usernames and area ownership are agreed; no owners are assumed here.

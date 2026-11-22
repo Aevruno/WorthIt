@@ -34,6 +34,18 @@ describe('scoreComparison', () => {
     expect(result.ranked.map((item) => item.rank)).toEqual([1, 1])
   })
 
+  it('treats totals that differ only by floating-point error as a tie', () => {
+    const equalWeights: Criterion[] = ['x', 'y', 'z'].map((id) => ({ id, name: id, importance: 1, higherIsBetter: true }))
+    const result = scoreComparison({ criteria: equalWeights, options: [
+      { id: 'a', name: 'A', scores: { x: 1, y: 2, z: 3 } },
+      { id: 'b', name: 'B', scores: { x: 3, y: 2, z: 1 } },
+      { id: 'c', name: 'C', scores: { x: 1, y: 1, z: 1 } },
+    ] })
+    expect(result.winner).toBeNull()
+    expect(result.leaders.map((item) => item.optionId)).toEqual(['a', 'b'])
+    expect(result.ranked.map((item) => [item.optionId, item.rank])).toEqual([['a', 1], ['b', 1], ['c', 3]])
+  })
+
   it('changes the winner when priorities change', () => {
     const result = scoreComparison({ criteria: [
       { ...criteria[0], importance: 1 },

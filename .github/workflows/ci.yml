@@ -1,10 +1,13 @@
 name: CI
 
 on:
+  # All PRs, so stacked PRs (based on another task branch) are checked too.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:

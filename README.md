@@ -25,4 +25,4 @@ CI uses `npm ci` with the committed lockfile. The localStorage adapter and scori
 
 ## Collaboration
 
-Treat `main` as protected. Create a task branch and submit meaningful work through a pull request. Read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before changing code. PRs are reviewed before merging. Claude may mark a reviewed head commit `AEVRUNO_APPROVED`; ChatGPT may perform final verification and merge only after explicit human authorization. No developer or agent merges its own PR.
+Treat `main` as protected. Create a task branch and submit meaningful work through a pull request. Read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before changing code (Claude Code also reads [CLAUDE.md](CLAUDE.md)). PRs are reviewed before merging. Claude may mark a reviewed head commit `AEVRUNO_APPROVED`; ChatGPT may perform final verification and merge only after explicit human authorization. No developer or agent merges its own PR. See [docs/PR_REVIEW_PROTOCOL.md](docs/PR_REVIEW_PROTOCOL.md).
