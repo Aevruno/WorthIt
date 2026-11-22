@@ -1,34 +1,21 @@
-import { useState } from 'react'
-import { ComparisonFlow } from './features/comparison/ComparisonFlow'
+import { ComparisonPlaceholder } from './features/comparison/ComparisonPlaceholder'
 import { ResultsPlaceholder } from './features/results/ResultsPlaceholder'
-import type { Comparison } from './types'
+import { SavedPlaceholder } from './features/saved/SavedPlaceholder'
 
-type View = { name: 'compare' } | { name: 'results'; comparison: Comparison }
-
-/**
- * Minimal view switch (no router yet). The comparison flow hands a complete,
- * scorable `Comparison` to the results view. The results feature replaces
- * `ResultsPlaceholder` with its real page and receives `view.comparison`.
- */
 export default function App() {
-  const [view, setView] = useState<View>({ name: 'compare' })
-
-  if (view.name === 'results') {
-    return (
-      <main className="shell">
-        <header>
-          <p className="eyebrow">Results</p>
-          <h1>{view.comparison.title}</h1>
-        </header>
+  return (
+    <main className="shell">
+      <header>
+        <p className="eyebrow">Aevruno</p>
+        <h1>WorthIt</h1>
+        <p>Make decisions around what matters to you.</p>
+      </header>
+      <section aria-label="Planned features" className="feature-grid">
+        <ComparisonPlaceholder />
         <ResultsPlaceholder />
-        <p className="note">
-          <button type="button" onClick={() => setView({ name: 'compare' })}>
-            Back to home
-          </button>
-        </p>
-      </main>
-    )
-  }
-
-  return <ComparisonFlow onComplete={(comparison) => setView({ name: 'results', comparison })} />
+        <SavedPlaceholder />
+      </section>
+      <p className="note">This is the project foundation. Comparison tools are coming next.</p>
+    </main>
+  )
 }

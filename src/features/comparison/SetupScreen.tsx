@@ -19,8 +19,12 @@ import { FieldError, OptionBadge, StepHeader, accentFor } from './ui'
 
 interface SetupScreenProps {
   draft: ComparisonDraft
+  mode: 'create' | 'edit'
+  /** Notes from loading a saved comparison (see `draftFromComparison`). */
+  adjustments: string[]
   onChange: (draft: ComparisonDraft) => void
   onBack: () => void
+  backLabel: string
   onContinue: () => void
 }
 
@@ -32,8 +36,9 @@ const TITLE_PLACEHOLDERS: Record<string, string> = {
   Other: 'Which one should I pick?',
 }
 
-export function SetupScreen({ draft, onChange, onBack, onContinue }: SetupScreenProps) {
-  const [submitted, setSubmitted] = useState(false)
+export function SetupScreen({ draft, mode, adjustments, onChange, onBack, backLabel, onContinue }: SetupScreenProps) {
+  // When editing a saved comparison, show any existing problems right away.
+  const [submitted, setSubmitted] = useState(mode === 'edit')
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const listRef = useRef<HTMLOListElement>(null)
   const validation = validateSetup(draft)
@@ -73,11 +78,25 @@ export function SetupScreen({ draft, onChange, onBack, onContinue }: SetupScreen
       <StepHeader
         step={1}
         totalSteps={3}
-        title="Start a comparison"
-        subtitle="Name it, pick a category, and add the options you’re deciding between."
+        title={mode === 'edit' ? 'Edit comparison' : 'Start a comparison'}
+        subtitle={
+          mode === 'edit'
+            ? 'Change anything you like. Your existing priorities and scores are kept.'
+            : 'Name it, pick a category, and add the options you’re deciding between.'
+        }
         onBack={onBack}
-        backLabel="Back to home"
+        backLabel={backLabel}
       />
+
+      {adjustments.length > 0 && (
+        <div className="wi-notice" role="note">
+          <p className="wi-notice__title">A few things were adjusted to fit this editor:</p>
+          <ul>
+            {adjustments.map((note) => <li key={note}>{note}</li>)}
+          </ul>
+          <p>Nothing is saved until you finish.</p>
+        </div>
+      )}
 
       <section className="wi-card">
         <label className="wi-label" htmlFor="wi-title">Comparison title</label>

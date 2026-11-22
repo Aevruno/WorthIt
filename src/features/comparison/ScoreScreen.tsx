@@ -66,7 +66,7 @@ export function ScoreScreen({ draft, onChange, onBack, onFinish, finishError, on
         step={3}
         totalSteps={3}
         title="Score each option"
-        subtitle="Rate how well each option does on each thing. 10 means best for you, even for price."
+        subtitle="Rate how well each option does on each thing, from 0 to 10. 10 means best for you, even for price."
         onBack={onBack}
         backLabel="Back to priorities"
       />
@@ -112,6 +112,12 @@ export function ScoreScreen({ draft, onChange, onBack, onFinish, finishError, on
           <span className="wi-importance-tag">
             {IMPORTANCE_LABELS[level]} · {criterion.importance}/10
           </span>
+          {!criterion.higherIsBetter && (
+            <p className="wi-direction-note">
+              <strong>Lower is better here.</strong> This comparison was saved that way, so 0 is the best score for{' '}
+              {criterion.name}.
+            </p>
+          )}
         </div>
 
         <div className="wi-score-options">
@@ -148,8 +154,8 @@ export function ScoreScreen({ draft, onChange, onBack, onFinish, finishError, on
                   ))}
                 </div>
                 <div className="wi-score-scale__ends" aria-hidden="true">
-                  <span>Poor</span>
-                  <span>Great</span>
+                  <span>{criterion.higherIsBetter ? 'Poor' : 'Best'}</span>
+                  <span>{criterion.higherIsBetter ? 'Great' : 'Worst'}</span>
                 </div>
               </fieldset>
             )

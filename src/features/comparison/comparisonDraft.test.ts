@@ -200,11 +200,13 @@ describe('scoring progress', () => {
     expect(firstIncompleteCriterion(draft)).toBe(-1)
   })
 
-  it('ignores out-of-range or fractional scores', () => {
+  it('accepts the full 0–10 contract range but ignores out-of-range or fractional scores', () => {
     const draft = laptopDraft()
     expect(setScore(draft, 'opt-xps', 'crit-price', 11)).toBe(draft)
-    expect(setScore(draft, 'opt-xps', 'crit-price', 0)).toBe(draft)
+    expect(setScore(draft, 'opt-xps', 'crit-price', -1)).toBe(draft)
     expect(setScore(draft, 'opt-xps', 'crit-price', 5.5)).toBe(draft)
+    expect(setScore(draft, 'opt-xps', 'crit-price', 0).scores['opt-xps']['crit-price']).toBe(0)
+    expect(setScore(draft, 'opt-xps', 'crit-price', 10).scores['opt-xps']['crit-price']).toBe(10)
   })
 
   it('a new option after scoring makes progress incomplete again', () => {

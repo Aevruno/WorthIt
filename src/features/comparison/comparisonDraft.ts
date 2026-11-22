@@ -37,7 +37,8 @@ export const MAX_CRITERIA = 8
 export const MIN_IMPORTANCE = 1
 export const MAX_IMPORTANCE = 10
 export const DEFAULT_IMPORTANCE = 5
-export const MIN_SCORE = 1
+/** Matches the shared contract: user-entered scores are 0–10. */
+export const MIN_SCORE = 0
 export const MAX_SCORE = 10
 export const MAX_TITLE_LENGTH = 80
 export const MAX_NAME_LENGTH = 40
@@ -55,6 +56,12 @@ export interface DraftCriterion {
   id: string
   name: string
   importance: number
+  /**
+   * New criteria are always `true` (the score screen asks "how good is it, 10 = best").
+   * Comparisons opened for editing keep whatever they were saved with, so editing never
+   * silently flips how an existing criterion is scored.
+   */
+  higherIsBetter: boolean
 }
 
 /** optionId → criterionId → score */
@@ -277,7 +284,7 @@ export function addCriterion(draft: ComparisonDraft, name: string, id: string = 
   if (validateNewCriterionName(name, draft.criteria)) return draft
   return {
     ...draft,
-    criteria: [...draft.criteria, { id, name: cleanText(name), importance: DEFAULT_IMPORTANCE }],
+    criteria: [...draft.criteria, { id, name: cleanText(name), importance: DEFAULT_IMPORTANCE, higherIsBetter: true }],
   }
 }
 
@@ -356,8 +363,8 @@ export interface BuildMeta {
 /**
  * Converts a finished draft to the shared `Comparison`. Throws with a readable
  * message if anything is still invalid, so the UI never saves a half-built result.
- * All criteria are "higher is better": the score screen asks how well each option
- * does (10 = best for you), including for price.
+ * New criteria are "higher is better" (the score screen asks how well each option
+ * does, 10 = best for you, including for price); edited ones keep their saved direction.
  */
 export function buildComparison(draft: ComparisonDraft, meta: BuildMeta): Comparison {
   const setup = validateSetup(draft)
@@ -370,7 +377,7 @@ export function buildComparison(draft: ComparisonDraft, meta: BuildMeta): Compar
     id: criterion.id,
     name: cleanText(criterion.name),
     importance: criterion.importance,
-    higherIsBetter: true,
+    higherIsBetter: criterion.higherIsBetter,
   }))
 
   const options: Option[] = draft.options.map((option) => {
@@ -394,5 +401,77 @@ export function buildComparison(draft: ComparisonDraft, meta: BuildMeta): Compar
     criteria,
     createdAt: meta.createdAt ?? meta.now,
     updatedAt: meta.now,
+  }
+}
+
+// ---------- Editing an existing comparison ----------
+
+export interface EditableComparison {
+  draft: ComparisonDraft
+  /**
+   * Plain-language notes about anything adjusted to fit this editor (for example a
+   * fractional score rounded to a whole number). Empty when the comparison loaded as-is.
+   * The UI shows these so nothing changes silently.
+   */
+  adjustments: string[]
+}
+
+function matchCategory(category: string): CategoryLabel | undefined {
+  const key = category.trim().toLowerCase()
+  return CATEGORIES.find((item) => item.label.toLowerCase() === key)?.label
+}
+
+/**
+ * Turns a saved `Comparison` back into an editable draft. IDs are kept so saving
+ * updates the same record. Criterion direction (`higherIsBetter`) is preserved.
+ */
+export function draftFromComparison(comparison: Comparison): EditableComparison {
+  const adjustments: string[] = []
+
+  const category = matchCategory(comparison.category)
+  if (!category) {
+    adjustments.push(`Category “${comparison.category}” isn’t one of this editor’s categories, so it’s shown as Other.`)
+  }
+
+  const criteria: DraftCriterion[] = comparison.criteria.map((criterion) => {
+    let importance = criterion.importance
+    if (!isValidImportance(importance)) {
+      importance = Number.isFinite(importance)
+        ? Math.min(MAX_IMPORTANCE, Math.max(MIN_IMPORTANCE, Math.round(importance)))
+        : DEFAULT_IMPORTANCE
+      adjustments.push(
+        `“${criterion.name}” had importance ${criterion.importance}. Importance here is ${MIN_IMPORTANCE}–${MAX_IMPORTANCE}, so it’s now ${importance}.`,
+      )
+    }
+    return { id: criterion.id, name: criterion.name, importance, higherIsBetter: criterion.higherIsBetter }
+  })
+
+  const scores: DraftScores = {}
+  let rounded = 0
+  for (const option of comparison.options) {
+    const byCriterion: Record<string, number> = {}
+    for (const criterion of comparison.criteria) {
+      const score = option.scores[criterion.id]
+      if (typeof score !== 'number' || !Number.isFinite(score) || score < MIN_SCORE || score > MAX_SCORE) continue
+      const whole = Math.round(score)
+      if (whole !== score) rounded += 1
+      byCriterion[criterion.id] = whole
+    }
+    scores[option.id] = byCriterion
+  }
+  if (rounded > 0) {
+    adjustments.push(`${rounded} score${rounded === 1 ? ' was' : 's were'} rounded to the nearest whole number.`)
+  }
+
+  const options: DraftOption[] = comparison.options.map((option) => ({
+    id: option.id,
+    name: option.name,
+    price: option.price !== undefined && Number.isFinite(option.price) ? String(option.price) : '',
+    subtitle: option.subtitle ?? '',
+  }))
+
+  return {
+    draft: { title: comparison.title, category: category ?? 'Other', options, criteria, scores },
+    adjustments,
   }
 }

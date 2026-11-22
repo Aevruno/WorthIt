@@ -6,9 +6,11 @@ import { accentFor } from './ui'
 interface HomeScreenProps {
   recent: RecentLoad
   onStart: (category?: CategoryLabel) => void
-  onOpenRecent: (comparison: Comparison) => void
+  onViewRecent: (comparison: Comparison) => void
+  onEditRecent: (comparison: Comparison) => void
   /** Present when an unfinished comparison exists in this session. */
   draftTitle?: string
+  draftIsEdit?: boolean
   onResume?: () => void
 }
 
@@ -19,14 +21,22 @@ function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? '' : dateFormatter.format(date)
 }
 
-export function HomeScreen({ recent, onStart, onOpenRecent, draftTitle, onResume }: HomeScreenProps) {
+export function HomeScreen({
+  recent,
+  onStart,
+  onViewRecent,
+  onEditRecent,
+  draftTitle,
+  draftIsEdit,
+  onResume,
+}: HomeScreenProps) {
   return (
     <div className="wi-screen wi-home">
       {onResume && (
         <div className="wi-resume" role="status">
           <p>
             <span aria-hidden="true">✏️ </span>
-            Unfinished: {draftTitle?.trim() || 'your comparison'}
+            {draftIsEdit ? 'Unsaved edits' : 'Unfinished'}: {draftTitle?.trim() || 'your comparison'}
           </p>
           <button type="button" className="wi-btn wi-btn--secondary" onClick={onResume}>
             Continue
@@ -71,13 +81,19 @@ export function HomeScreen({ recent, onStart, onOpenRecent, draftTitle, onResume
 
       <section className="wi-section" aria-labelledby="wi-recent-title">
         <h2 id="wi-recent-title" className="wi-section__title">Recent comparisons</h2>
-        <RecentList recent={recent} onOpen={onOpenRecent} />
+        <RecentList recent={recent} onView={onViewRecent} onEdit={onEditRecent} />
       </section>
     </div>
   )
 }
 
-function RecentList({ recent, onOpen }: { recent: RecentLoad; onOpen: (comparison: Comparison) => void }) {
+interface RecentListProps {
+  recent: RecentLoad
+  onView: (comparison: Comparison) => void
+  onEdit: (comparison: Comparison) => void
+}
+
+function RecentList({ recent, onView, onEdit }: RecentListProps) {
   if (recent.status === 'unavailable') {
     return (
       <p className="wi-empty">
@@ -97,22 +113,34 @@ function RecentList({ recent, onOpen }: { recent: RecentLoad; onOpen: (compariso
   return (
     <ul className="wi-recent-list">
       {recent.items.map(({ comparison, viewable }) => {
-        const meta = `${comparison.category} · ${comparison.options.length} options · ${formatDate(comparison.updatedAt)}`
+        const titleId = `wi-recent-${comparison.id}`
         return (
-          <li key={comparison.id}>
-            {viewable ? (
-              <button type="button" className="wi-recent" onClick={() => onOpen(comparison)}>
-                <span className="wi-recent__title">{comparison.title}</span>
-                <span className="wi-recent__meta">{meta}</span>
-                <span className="wi-recent__cta" aria-hidden="true">See result →</span>
+          <li key={comparison.id} className="wi-recent">
+            <span className="wi-recent__title" id={titleId}>{comparison.title}</span>
+            <span className="wi-recent__meta">
+              {comparison.category} · {comparison.options.length} options · {formatDate(comparison.updatedAt)}
+              {!viewable && <> · <strong>needs scores</strong></>}
+            </span>
+            <span className="wi-recent__actions">
+              <button
+                type="button"
+                className="wi-btn wi-btn--ghost wi-btn--sm"
+                onClick={() => onEdit(comparison)}
+                aria-describedby={titleId}
+              >
+                {viewable ? 'Edit' : 'Finish it'}
               </button>
-            ) : (
-              <div className="wi-recent is-disabled">
-                <span className="wi-recent__title">{comparison.title}</span>
-                <span className="wi-recent__meta">{meta}</span>
-                <span className="wi-recent__cta">Incomplete, can’t show a result</span>
-              </div>
-            )}
+              {viewable && (
+                <button
+                  type="button"
+                  className="wi-btn wi-btn--secondary wi-btn--sm"
+                  onClick={() => onView(comparison)}
+                  aria-describedby={titleId}
+                >
+                  See result
+                </button>
+              )}
+            </span>
           </li>
         )
       })}
