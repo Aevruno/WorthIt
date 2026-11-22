@@ -25,6 +25,7 @@ describe('result card', () => {
   })
 
   it('does not offer a winner for a tie or missing scores', () => {
+    expect(createResultCard({ ...comparison, options: [comparison.options[0]] })).toBeNull()
     expect(createResultCard({ ...comparison, options: [comparison.options[0], { ...comparison.options[1], scores: { battery: 8 } }] })).toBeNull()
     expect(createResultCard({ ...comparison, options: [comparison.options[0], { ...comparison.options[1], scores: {} }] })).toBeNull()
   })

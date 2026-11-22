@@ -10,6 +10,7 @@ export interface ResultCard {
 
 /** Returns null for incomplete comparisons or a first-place tie. */
 export function createResultCard(comparison: Comparison): ResultCard | null {
+  if (comparison.options.length < 2) return null
   try {
     const result = scoreComparison(comparison)
     if (!result.winner) return null
