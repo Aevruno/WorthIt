@@ -79,12 +79,31 @@ describe('analyzeSensitivity', () => {
       { id: 'a', name: 'A', scores: { battery: 7 } },
       { id: 'b', name: 'B', scores: { battery: 7 } },
     ] })
-    expect(result).toEqual({ winnerId: null, flips: [], maxImportance: 6 })
+    expect(result).toEqual({ winnerId: null, flips: [], minImportance: 0, maxImportance: 6 })
   })
 
   it('propagates scoring validation and rejects bad settings', () => {
     expect(() => analyzeSensitivity({ criteria, options: [{ ...options[0], scores: { battery: 8 } }, options[1]] })).toThrow(/score/)
     expect(() => analyzeSensitivity({ criteria, options }, { step: 0 })).toThrow(/step/)
     expect(() => analyzeSensitivity({ criteria, options }, { maxImportance: -1 })).toThrow(/maxImportance/)
+    expect(() => analyzeSensitivity({ criteria, options }, { minImportance: -1 })).toThrow(/minImportance/)
+    expect(() => analyzeSensitivity({ criteria, options }, { minImportance: 5, maxImportance: 4 })).toThrow(/maxImportance/)
+  })
+})
+
+describe('analyzeSensitivity with a UI importance scale', () => {
+  it('reports only whole-number changes inside the slider range', () => {
+    const { flips, minImportance, maxImportance } = analyzeSensitivity({ criteria, options }, { minImportance: 1, maxImportance: 10, step: 1 })
+    expect({ minImportance, maxImportance }).toEqual({ minImportance: 1, maxImportance: 10 })
+    expect(flips.map((flip) => [flip.criterionId, flip.direction, flip.flipImportance])).toEqual([
+      ['price', 'increase', 2], // ties at 1.5
+      ['battery', 'decrease', 1], // ties at 2
+    ])
+    for (const flip of flips) expect(winnerWith(flip.criterionId, flip.flipImportance)).toBe('b')
+  })
+
+  it('drops decreases that would need to go below minImportance', () => {
+    const { flips } = analyzeSensitivity({ criteria, options }, { minImportance: 2, maxImportance: 10, step: 1 })
+    expect(flips.map((flip) => flip.criterionId)).toEqual(['price'])
   })
 })

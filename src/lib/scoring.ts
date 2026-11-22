@@ -122,6 +122,8 @@ export interface WinnerFlip {
 }
 
 export interface SensitivityOptions {
+  /** Lowest importance considered when lowering a criterion. Defaults to 0. */
+  minImportance?: number
   /** Highest importance considered when raising a criterion. Defaults to 2x the current highest importance. */
   maxImportance?: number
   /** Granularity of reported `flipImportance` values. Defaults to 0.1. */
@@ -133,6 +135,8 @@ export interface SensitivityResult {
   winnerId: string | null
   /** At most one flip per criterion and direction, smallest change first. Empty means the winner is stable. */
   flips: WinnerFlip[]
+  /** The lower bound that was applied to decreases. */
+  minImportance: number
   /** The upper bound that was applied to increases. */
   maxImportance: number
 }
@@ -143,8 +147,9 @@ function roundTo(value: number, step: number): number {
 
 /**
  * Finds the smallest single-criterion importance change that would change the winner.
- * Each criterion is varied on its own (others fixed): raised up to `maxImportance`, or lowered to 0.
+ * Each criterion is varied on its own (others fixed): raised up to `maxImportance`, or lowered to `minImportance`.
  * Every reported flip is confirmed by re-running `scoreComparison` at `flipImportance`.
+ * Pass the UI's importance range and step so every reported change is one the user can actually make.
  */
 export function analyzeSensitivity(
   comparison: Pick<Comparison, 'options' | 'criteria'>,
@@ -153,11 +158,13 @@ export function analyzeSensitivity(
   const { options, criteria } = comparison
   const base = scoreComparison(comparison)
   const topImportance = Math.max(...criteria.map((criterion) => criterion.importance))
+  const minImportance = settings.minImportance ?? 0
   const maxImportance = settings.maxImportance ?? topImportance * 2
   const step = settings.step ?? 0.1
-  if (!Number.isFinite(maxImportance) || maxImportance < 0) throw new Error('maxImportance must be a nonnegative number')
+  if (!Number.isFinite(minImportance) || minImportance < 0) throw new Error('minImportance must be a nonnegative number')
+  if (!Number.isFinite(maxImportance) || maxImportance < minImportance) throw new Error('maxImportance must be a number of at least minImportance')
   if (!Number.isFinite(step) || step <= 0) throw new Error('step must be a positive number')
-  if (!base.winner) return { winnerId: null, flips: [], maxImportance }
+  if (!base.winner) return { winnerId: null, flips: [], minImportance, maxImportance }
 
   const winnerId = base.winner.optionId
   const effective = new Map(base.ranked.map((item) => [
@@ -211,7 +218,7 @@ export function analyzeSensitivity(
           ? roundTo((Math.floor(tie / step) + 1 + attempt) * step, step)
           : roundTo((Math.ceil(tie / step) - 1 - attempt) * step, step)
         if (direction === 'increase' && flipImportance > maxImportance) break
-        if (direction === 'decrease' && flipImportance < 0) break
+        if (direction === 'decrease' && flipImportance < minImportance) break
         const challengerId = winnerAt(criterion.id, flipImportance)
         if (challengerId !== null && challengerId !== winnerId) {
           flips.push({
@@ -230,5 +237,5 @@ export function analyzeSensitivity(
 
   const size = (flip: WinnerFlip) => Math.abs(flip.flipImportance - flip.currentImportance)
   flips.sort((a, b) => size(a) - size(b))
-  return { winnerId, flips, maxImportance }
+  return { winnerId, flips, minImportance, maxImportance }
 }
