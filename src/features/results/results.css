@@ -204,6 +204,8 @@
 .tradeoff-icon { color: var(--accent); font-size: .85rem; }
 .tradeoff-items { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .tradeoff-scores { color: var(--r-muted); font-variant-numeric: tabular-nums; }
+.tradeoff-impact { color: var(--r-muted); font-size: .875rem; }
+.tradeoff-item--minor strong { font-weight: 600; }
 
 /* ---------- What would change ---------- */
 .changes { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }

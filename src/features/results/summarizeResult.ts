@@ -4,6 +4,20 @@ import { analyzeSensitivity, scoreComparison, type Contribution, type RankedOpti
 /** Gaps on the 0–100 WorthIt scale. Below CLOSE_GAP is "close"; at or above DOMINANT_GAP is "dominant". */
 export const CLOSE_GAP = 5
 export const DOMINANT_GAP = 20
+/** Tradeoffs worth less than this many points are labelled "minor". */
+export const MINOR_TRADEOFF_POINTS = 1
+
+/** The importance values the comparison UI lets people set, so suggested changes are actionable. */
+export interface ImportanceScale {
+  min: number
+  max: number
+  step: number
+}
+
+export interface SummarizeOptions {
+  /** Defaults to the engine defaults: 0 to 2x the current top importance, in steps of 0.1. */
+  importanceScale?: ImportanceScale
+}
 
 export interface OptionSummary {
   id: string
@@ -36,6 +50,10 @@ export interface TradeoffItem {
   higherIsBetter: boolean
   theirScore: number
   winnerScore: number
+  /** How many points (0–100 scale) this priority gave the other option over the winner. */
+  points: number
+  /** True when the advantage is worth less than MINOR_TRADEOFF_POINTS. Still shown, just labelled. */
+  minor: boolean
 }
 
 export interface Tradeoff {
@@ -84,10 +102,27 @@ export type ResultSummary =
       tradeoffs: Tradeoff[]
       /** Null when sensitivity analysis could not run. */
       changes: WinnerChange[] | null
-      /** Upper importance bound the sensitivity analysis applied to increases. */
+      /** Importance bounds the sensitivity analysis applied. */
+      minImportance: number
       maxImportance: number
       topPriorityName: string
     }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Structural check for data that may come from storage or older app versions. */
+function hasScorableShape(value: unknown): value is Pick<Comparison, 'options' | 'criteria'> {
+  return isRecord(value) &&
+    Array.isArray(value.options) && value.options.every((option) =>
+      isRecord(option) && typeof option.id === 'string' && typeof option.name === 'string' && isRecord(option.scores)) &&
+    Array.isArray(value.criteria) && value.criteria.every((criterion) =>
+      isRecord(criterion) && typeof criterion.id === 'string' && typeof criterion.name === 'string' &&
+      typeof criterion.importance === 'number' && typeof criterion.higherIsBetter === 'boolean')
+}
+
+const DAMAGED = 'This comparison’s data is damaged or from an older version, so WorthIt can’t show a result for it. Try creating it again.'
 
 function isValidScore(score: unknown): score is number {
   return typeof score === 'number' && Number.isFinite(score) && score >= 0 && score <= 10
@@ -141,8 +176,19 @@ function closenessFor(gap: number): Closeness {
 }
 
 /** Turns a comparison into everything the Results screen shows. Uses only the shared scoring engine. */
-export function summarizeResult(comparison: Pick<Comparison, 'options' | 'criteria'> | null | undefined): ResultSummary {
-  if (!comparison || (comparison.options.length === 0 && comparison.criteria.length === 0)) return { kind: 'empty' }
+export function summarizeResult(
+  input: Pick<Comparison, 'options' | 'criteria'> | null | undefined,
+  settings: SummarizeOptions = {},
+): ResultSummary {
+  if (input === null || input === undefined) return { kind: 'empty' }
+  if (!hasScorableShape(input)) return { kind: 'incomplete', problems: [DAMAGED] }
+  if (input.options.length === 0 && input.criteria.length === 0) return { kind: 'empty' }
+
+  // Blank names would leave holes in sentences; give them neutral labels. Names never affect scoring.
+  const comparison: Pick<Comparison, 'options' | 'criteria'> = {
+    options: input.options.map((option, index) => ({ ...option, name: option.name.trim() || `Option ${index + 1}` })),
+    criteria: input.criteria.map((criterion, index) => ({ ...criterion, name: criterion.name.trim() || `Priority ${index + 1}` })),
+  }
 
   const problems = findProblems(comparison)
   if (problems.length > 0) return { kind: 'incomplete', problems }
@@ -260,22 +306,35 @@ export function summarizeResult(comparison: Pick<Comparison, 'options' | 'criter
     .filter((item) => item.id !== winner.id)
     .map((option) => ({
       option,
-      items: [...active]
-        .sort((a, b) => b.importance - a.importance)
+      items: active
         .filter((criterion) => contribution(option.id, criterion.id).effectiveScore > contribution(winner.id, criterion.id).effectiveScore)
-        .map((criterion) => ({
-          criterionName: criterion.name,
-          higherIsBetter: criterion.higherIsBetter,
-          theirScore: contribution(option.id, criterion.id).enteredScore,
-          winnerScore: contribution(winner.id, criterion.id).enteredScore,
-        })),
+        .map((criterion) => {
+          const theirs = contribution(option.id, criterion.id)
+          const winners = contribution(winner.id, criterion.id)
+          const points = (theirs.weightedScore - winners.weightedScore) * 10
+          return {
+            criterionName: criterion.name,
+            higherIsBetter: criterion.higherIsBetter,
+            theirScore: theirs.enteredScore,
+            winnerScore: winners.enteredScore,
+            points,
+            minor: points < MINOR_TRADEOFF_POINTS,
+          }
+        })
+        // Biggest real advantage first, so the meaningful tradeoffs lead.
+        .sort((a, b) => b.points - a.points),
     }))
     .filter((tradeoff) => tradeoff.items.length > 0)
 
   let changes: WinnerChange[] | null = null
-  let maxImportance = topImportance * 2
+  const scale = settings.importanceScale
+  let minImportance = scale?.min ?? 0
+  let maxImportance = scale?.max ?? topImportance * 2
   try {
-    const sensitivity = analyzeSensitivity(comparison)
+    const sensitivity = analyzeSensitivity(comparison, scale
+      ? { minImportance: scale.min, maxImportance: scale.max, step: scale.step }
+      : {})
+    minImportance = sensitivity.minImportance
     maxImportance = sensitivity.maxImportance
     changes = sensitivity.flips.slice(0, 3).map((flip) => ({
       criterionName: criterionById.get(flip.criterionId)!.name,
@@ -300,6 +359,7 @@ export function summarizeResult(comparison: Pick<Comparison, 'options' | 'criter
     contributions,
     tradeoffs,
     changes,
+    minImportance,
     maxImportance,
     topPriorityName: topCriteria.length > 1 ? topCriteria.map((criterion) => criterion.name).join(' / ') : top.name,
   }

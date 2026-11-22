@@ -18,16 +18,20 @@ export interface RegretCheckProps {
   tradeoff?: { criterionName: string; betterOptionName: string }
   /** The winner's biggest contributor. */
   winnerStrength?: string
+  /** Formats prices; defaults to a plain localized whole number. */
+  formatPrice?: (price: number) => string
 }
 
-const priceFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
+const defaultPriceFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
+const defaultFormatPrice = (price: number) => defaultPriceFormat.format(price)
 
-function buildQuestions({ winnerName, runnerUpName, winnerPrice, tradeoff, winnerStrength }: RegretCheckProps): Question[] {
+function buildQuestions({ winnerName, runnerUpName, winnerPrice, tradeoff, winnerStrength, formatPrice }: RegretCheckProps): Question[] {
+  const format = formatPrice ?? defaultFormatPrice
   const questions: Question[] = []
   questions.push(winnerPrice !== undefined && winnerPrice > 0
     ? {
         id: 'price',
-        prompt: `Would you still choose ${winnerName} if it cost 10% more (about ${priceFormat.format(winnerPrice * 1.1)} instead of ${priceFormat.format(winnerPrice)})?`,
+        prompt: `Would you still choose ${winnerName} if it cost 10% more (about ${format(winnerPrice * 1.1)} instead of ${format(winnerPrice)})?`,
         answers: [
           { label: 'Yes, still worth it', feeling: 'confident' },
           { label: 'Maybe', feeling: 'unsure' },

@@ -7,6 +7,7 @@ import {
   scoreText,
   summarizeResult,
   type ContributionRow,
+  type ImportanceScale,
   type OptionSummary,
   type ResultSummary,
   type WinnerChange,
@@ -14,13 +15,21 @@ import {
 import './results.css'
 
 export interface ResultsViewProps {
-  /** The comparison to explain. Null/undefined shows the empty state. */
+  /** The comparison to explain. Null/undefined shows the empty state. Malformed data shows a recoverable message. */
   comparison: Pick<Comparison, 'options' | 'criteria'> | null | undefined
   /** Navigate back to editing. When omitted, no edit button is shown. */
   onEditComparison?: () => void
+  /**
+   * The importance values your comparison UI allows (e.g. `{ min: 1, max: 10, step: 1 }`), so
+   * "What would change the winner?" only suggests changes people can actually make.
+   */
+  importanceScale?: ImportanceScale
+  /** Formats `Option.price` (which carries no currency). Defaults to a plain localized number. */
+  formatPrice?: (price: number) => string
 }
 
-const priceFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
+const defaultPriceFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
+const defaultFormatPrice = (price: number) => defaultPriceFormat.format(price)
 const ACCENTS = 4
 
 function Crown() {
@@ -126,7 +135,13 @@ function changeSentence(change: WinnerChange, topPriorityName: string): string {
   return change.exceedsTopPriority ? `${base} That’s more than ${topPriorityName}, your current top priority.` : base
 }
 
-function Decided({ summary, onEditComparison }: { summary: Extract<ResultSummary, { kind: 'decided' }>; onEditComparison?: () => void }) {
+interface DecidedProps {
+  summary: Extract<ResultSummary, { kind: 'decided' }>
+  onEditComparison?: () => void
+  formatPrice: (price: number) => string
+}
+
+function Decided({ summary, onEditComparison, formatPrice }: DecidedProps) {
   const { winner, runnerUp, closeness } = summary
   const format = pointsFormatter([winner.points, runnerUp.points])
   const rankingFormat = pointsFormatter(summary.ranking.map((item) => item.points))
@@ -141,7 +156,7 @@ function Decided({ summary, onEditComparison }: { summary: Extract<ResultSummary
           <p className="results-winner-name">{winner.name}</p>
           {winner.subtitle && <p className="results-winner-subtitle">{winner.subtitle}</p>}
           {winner.price !== undefined && (
-            <p className="results-price"><span>Price</span> {priceFormat.format(winner.price)}</p>
+            <p className="results-price"><span>Price</span> {formatPrice(winner.price)}</p>
           )}
           <p className={`results-badge results-badge--${closeness}`}>
             {closeness === 'close' && <><span aria-hidden="true">≈ </span>This one is close</>}
@@ -225,10 +240,13 @@ function Decided({ summary, onEditComparison }: { summary: Extract<ResultSummary
                   </p>
                   <ul className="tradeoff-items">
                     {tradeoff.items.map((item) => (
-                      <li key={item.criterionName}>
+                      <li key={item.criterionName} className={item.minor ? 'tradeoff-item--minor' : undefined}>
                         <strong>{item.criterionName}</strong>{' '}
                         <span className="tradeoff-scores">
                           {formatNumber(item.theirScore)} vs {formatNumber(item.winnerScore)}{item.higherIsBetter ? '' : ', lower is better'}
+                        </span>
+                        <span className="tradeoff-impact">
+                          {item.minor ? ' · minor, under 1 pt' : ` · worth ${formatNumber(item.points)} pts`}
                         </span>
                       </li>
                     ))}
@@ -245,8 +263,9 @@ function Decided({ summary, onEditComparison }: { summary: Extract<ResultSummary
         {summary.changes === null && <p>We couldn’t run this check for this comparison.</p>}
         {summary.changes !== null && summary.changes.length === 0 && (
           <p>
-            <strong>{winner.name} holds up.</strong> Changing how much any single priority matters, from not at all
-            up to {formatNumber(summary.maxImportance)} importance, keeps {winner.name} in first place.
+            <strong>{winner.name} holds up.</strong> Changing how much any single priority matters, anywhere from{' '}
+            {summary.minImportance === 0 ? 'not at all' : `importance ${formatNumber(summary.minImportance)}`}{' '}
+            up to {formatNumber(summary.maxImportance)}, keeps {winner.name} in first place.
           </p>
         )}
         {summary.changes !== null && summary.changes.length > 0 && (
@@ -271,6 +290,7 @@ function Decided({ summary, onEditComparison }: { summary: Extract<ResultSummary
           winnerName={winner.name}
           runnerUpName={runnerUp.name}
           winnerPrice={winner.price}
+          formatPrice={formatPrice}
           winnerStrength={strongest?.name}
           tradeoff={firstTradeoff ? { criterionName: firstTradeoff.items[0].criterionName, betterOptionName: firstTradeoff.option.name } : undefined}
         />
@@ -336,8 +356,8 @@ function Tie({ summary, onEditComparison }: { summary: Extract<ResultSummary, { 
 }
 
 /** The Results screen. Pure presentation over the shared scoring engine; owns no persisted state. */
-export function ResultsView({ comparison, onEditComparison }: ResultsViewProps) {
-  const summary = summarizeResult(comparison)
+export function ResultsView({ comparison, onEditComparison, importanceScale, formatPrice = defaultFormatPrice }: ResultsViewProps) {
+  const summary = summarizeResult(comparison, { importanceScale })
   return (
     <div className="results">
       {summary.kind === 'empty' && (
@@ -358,7 +378,7 @@ export function ResultsView({ comparison, onEditComparison }: ResultsViewProps) 
         </section>
       )}
       {summary.kind === 'tie' && <Tie summary={summary} onEditComparison={onEditComparison} />}
-      {summary.kind === 'decided' && <Decided summary={summary} onEditComparison={onEditComparison} />}
+      {summary.kind === 'decided' && <Decided summary={summary} onEditComparison={onEditComparison} formatPrice={formatPrice} />}
     </div>
   )
 }

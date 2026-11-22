@@ -59,6 +59,38 @@ describe('ResultsView', () => {
     expect(html).toContain('Zen 14 still needs a 0–10 score for Performance.')
   })
 
+  it('shows tradeoff impact in points and labels minor ones', () => {
+    const html = render(samples.normal)
+    expect(html).toContain('Value for money')
+    expect(html).toContain('· worth 6 pts')
+  })
+
+  it('uses the integration-provided price formatter', () => {
+    const html = renderToStaticMarkup(
+      <ResultsView comparison={samples.normal} formatPrice={(price) => `USD ${price.toFixed(2)}`} />,
+    ).replace(/<!-- -->/g, '')
+    expect(html).toContain('USD 1099.00')
+    expect(html).toContain('about USD 1208.90 instead of USD 1099.00')
+  })
+
+  it('describes the checked range using the UI importance scale', () => {
+    const html = renderToStaticMarkup(
+      <ResultsView comparison={samples.dominant} importanceScale={{ min: 1, max: 10, step: 1 }} />,
+    ).replace(/<!-- -->/g, '')
+    expect(html).toContain('anywhere from importance 1 up to 10, keeps Aero 13 in first place')
+    const normal = renderToStaticMarkup(
+      <ResultsView comparison={samples.normal} importanceScale={{ min: 1, max: 10, step: 1 }} />,
+    ).replace(/<!-- -->/g, '')
+    expect(normal).not.toMatch(/→ \d+\.\d/) // whole-number suggestions only
+  })
+
+  it('renders a recoverable message for damaged data', () => {
+    const html = render({ options: 'broken' } as unknown as ResultsViewProps['comparison'], () => {})
+    expect(html).toContain('Almost there')
+    expect(html).toContain('damaged or from an older version')
+    expect(html).toContain('Finish your comparison')
+  })
+
   it('only renders the edit button when a handler is provided', () => {
     expect(render(samples.normal)).not.toContain('<button')
     expect(render(samples.normal, () => {})).toContain('Adjust scores or priorities')

@@ -9,6 +9,7 @@ import '../../../styles/global.css'
 import { ResultsView } from '../ResultsView'
 import { samples, type SampleName } from './sampleComparisons'
 
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 const names = Object.keys(samples) as SampleName[]
 const requested = new URLSearchParams(window.location.search).get('scenario')
 const current: SampleName = names.includes(requested as SampleName) ? (requested as SampleName) : 'normal'
@@ -25,7 +26,13 @@ function Preview() {
           </a>
         ))}
       </nav>
-      <ResultsView comparison={samples[current]} onEditComparison={() => window.alert('The comparison screen is owned by another feature.')} />
+      <ResultsView
+        comparison={samples[current]}
+        onEditComparison={() => window.alert('The comparison screen is owned by another feature.')}
+        // Mirrors the comparison flow (feature/comparison-flow): whole-number importance 1–10, USD display prices.
+        importanceScale={{ min: 1, max: 10, step: 1 }}
+        formatPrice={(price) => usd.format(price)}
+      />
     </main>
   )
 }
